@@ -1,11 +1,9 @@
 package com.endava.endabank.service.impl;
 
+import com.endava.endabank.configuration.MailProperties;
 import com.endava.endabank.constants.Permissions;
 import com.endava.endabank.constants.Routes;
 import com.endava.endabank.constants.Strings;
-import com.endava.endabank.dao.ForgotUserPasswordTokenDao;
-import com.endava.endabank.dao.IdentifierTypeDao;
-import com.endava.endabank.dao.RoleDao;
 import com.endava.endabank.dao.UserDao;
 import com.endava.endabank.dto.user.UpdatePasswordDto;
 import com.endava.endabank.dto.user.UserDetailsDto;
@@ -13,8 +11,8 @@ import com.endava.endabank.dto.user.UserPrincipalSecurity;
 import com.endava.endabank.dto.user.UserRegisterDto;
 import com.endava.endabank.dto.user.UserRegisterGetDto;
 import com.endava.endabank.dto.user.UserToApproveAccountDto;
-import com.endava.endabank.exceptions.customexceptions.ServiceUnavailableException;
 import com.endava.endabank.exceptions.customexceptions.BadDataException;
+import com.endava.endabank.exceptions.customexceptions.ServiceUnavailableException;
 import com.endava.endabank.exceptions.customexceptions.UniqueConstraintViolationException;
 import com.endava.endabank.model.ForgotUserPasswordToken;
 import com.endava.endabank.model.Permission;
@@ -22,18 +20,18 @@ import com.endava.endabank.model.Role;
 import com.endava.endabank.model.User;
 import com.endava.endabank.security.utils.JwtManage;
 import com.endava.endabank.service.ForgotUserPasswordTokenService;
+import com.endava.endabank.service.IdentifierTypeService;
+import com.endava.endabank.service.RoleService;
 import com.endava.endabank.utils.MailService;
 import com.endava.endabank.utils.TestUtils;
 import com.endava.endabank.utils.user.UserValidations;
 import com.sendgrid.Response;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -46,7 +44,10 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -75,36 +76,30 @@ class UserServiceImplTest {
     private ModelMapper modelMapper;
 
     @Mock
-    private IdentifierTypeDao identifierTypeDao;
-
-    @InjectMocks
-    private IdentifierTypeServiceImpl identifierTypeService
-            = new IdentifierTypeServiceImpl(identifierTypeDao);
+    private IdentifierTypeService identifierTypeService;
 
     @Mock
-    private RoleDao roleDao;
-
-    @InjectMocks
-    private RoleServiceImpl roleService = new RoleServiceImpl(roleDao);
+    private RoleService roleService;
 
     @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private ForgotUserPasswordTokenDao forgotUserPasswordTokenDao;
-
-    @InjectMocks
-    private ForgotUserPasswordTokenServiceImpl forgotUserPasswordTokenServiceImpl
-            = new ForgotUserPasswordTokenServiceImpl(forgotUserPasswordTokenDao);
-
-    @InjectMocks
-    private UserServiceImpl userService =
-            new UserServiceImpl(userDao, modelMapper, identifierTypeService, roleService,
-                    passwordEncoder, forgotUserPasswordTokenServiceImpl
-            );
+    private MailService mailService;
 
     @Mock
     private ForgotUserPasswordTokenService forgotUserPasswordTokenService;
+
+    private final MailProperties mailProperties = new MailProperties("test", "test", "test", "test");
+
+    private UserServiceImpl userService;
+
+    @BeforeEach
+    void setUp() {
+        userService =
+                new UserServiceImpl(userDao, modelMapper, identifierTypeService, roleService,
+                        passwordEncoder, forgotUserPasswordTokenService, mailService, mailProperties);
+    }
 
     @Test
     void getUsernamePasswordToken() {
@@ -237,7 +232,7 @@ class UserServiceImplTest {
     }
 
     @Test
-    void generateResetPasswordShouldFailOnNoUserOnDb(){
+    void generateResetPasswordShouldFailOnNoUserOnDb() {
         User user = TestUtils.getUserNotAdmin();
         String email = user.getEmail();
         when(userDao.findByEmail(user.getEmail())).thenReturn(Optional.empty());
@@ -253,42 +248,42 @@ class UserServiceImplTest {
             jwtMock.when(() ->
                             JwtManage.generateToken(user.getId(), user.getEmail(), null)).
                     thenReturn("token");
-            try (MockedStatic<MailService> emailServiceMock = Mockito.mockStatic(MailService.class)) {
-                String link = Routes.RESET_PASSWORD_FRONTEND_ROUTE + "token";
-                Response response = TestUtils.getSendGridResponse();
-                emailServiceMock.when(() ->
-                        MailService.sendEmail(user.getEmail(), user.getFirstName(),
-                                link, System.getenv("SEND_GRID_TEMPLATE_ID"),
-                                Strings.EMAIL_AS_RESET_PASSWORD)).thenReturn(response);
-                Map<String, Object> mapRet = userService.generateResetPassword(user.getEmail());
-                assertEquals(HttpStatus.ACCEPTED, mapRet.get(Strings.STATUS_CODE_RESPONSE));
-                assertEquals(Strings.MAIL_SENT, mapRet.get(Strings.MESSAGE_RESPONSE));
-                ArgumentCaptor<ForgotUserPasswordToken> argumentCaptor
-                        = ArgumentCaptor.forClass(ForgotUserPasswordToken.class);
-                verify(forgotUserPasswordTokenService,
-                        times(1)).save(argumentCaptor.capture());
-                ForgotUserPasswordToken forgotUserPasswordToken = argumentCaptor.getValue();
-                assertEquals(user.getId(), forgotUserPasswordToken.getUser().getId());
-                assertEquals(user.getEmail(), forgotUserPasswordToken.getUser().getEmail());
-                assertEquals("token", forgotUserPasswordToken.getToken());
-            }
+            String link = Routes.RESET_PASSWORD_FRONTEND_ROUTE + "token";
+            Response response = TestUtils.getSendGridResponse();
+            when(
+                    mailService.sendEmail(user.getEmail(), user.getFirstName(),
+                            link, "test",
+                            Strings.EMAIL_AS_RESET_PASSWORD)).thenReturn(response);
+            Map<String, Object> mapRet = userService.generateResetPassword(user.getEmail());
+            assertEquals(HttpStatus.ACCEPTED, mapRet.get(Strings.STATUS_CODE_RESPONSE));
+            assertEquals(Strings.MAIL_SENT, mapRet.get(Strings.MESSAGE_RESPONSE));
+            ArgumentCaptor<ForgotUserPasswordToken> argumentCaptor
+                    = ArgumentCaptor.forClass(ForgotUserPasswordToken.class);
+            verify(forgotUserPasswordTokenService,
+                    times(1)).save(argumentCaptor.capture());
+            ForgotUserPasswordToken forgotUserPasswordToken = argumentCaptor.getValue();
+            assertEquals(user.getId(), forgotUserPasswordToken.getUser().getId());
+            assertEquals(user.getEmail(), forgotUserPasswordToken.getUser().getEmail());
+            assertEquals("token", forgotUserPasswordToken.getToken());
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
+
     @Test
-    void sendEmailToUserShouldFailOnServiceUnavailable(){
+    void sendEmailToUserShouldFailOnServiceUnavailable() {
         User user = TestUtils.getUserNotAdmin();
         try (MockedStatic<JwtManage> jwtMock = Mockito.mockStatic(JwtManage.class)) {
             jwtMock.when(() ->
                             JwtManage.generateToken(user.getId(), user.getEmail(), null)).
                     thenReturn("token");
-            BiFunction<User, String, String > callback = (u, t)-> "token";
-            try (MockedStatic<MailService> emailServiceMock = Mockito.mockStatic(MailService.class)) {
-                emailServiceMock.when(() ->
-                        MailService.sendEmail(any(), any(),any(),any(),any()))
-                        .thenReturn(null);
-                assertThrows(ServiceUnavailableException.class,
-                        ()-> userService.sendEmailToUser("templateId",user,"test", callback));
-            }
+            BiFunction<User, String, String> callback = (u, t) -> "token";
+            when(mailService.sendEmail(any(), any(), any(), any(), any()))
+                    .thenReturn(null);
+            assertThrows(ServiceUnavailableException.class,
+                    () -> userService.sendEmailToUser("templateId", user, "test", callback));
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -300,18 +295,18 @@ class UserServiceImplTest {
             jwtMock.when(() ->
                             JwtManage.generateToken(user.getId(), user.getEmail(), null)).
                     thenReturn("token");
-            try (MockedStatic<MailService> emailServiceMock = Mockito.mockStatic(MailService.class)) {
-                String emailDb = "&email=" + email;
-                String link = Routes.EMAIL_VALIDATION_FRONTEND_ROUTE + "token" + emailDb;
-                Response response = TestUtils.getSendGridResponse();
-                emailServiceMock.when(() ->
-                        MailService.sendEmail(user.getEmail(), user.getFirstName(),
-                                link, System.getenv("SEND_GRID_TEMPLATE_ID_VERIFY"),
-                                Strings.EMAIL_AS_VERIFY_EMAIL)).thenReturn(response);
-                Map<String, Object> mapRet = userService.generateEmailVerification(user,email);
-                assertEquals(HttpStatus.ACCEPTED, mapRet.get(Strings.STATUS_CODE_RESPONSE));
-                assertEquals(Strings.MAIL_SENT, mapRet.get(Strings.MESSAGE_RESPONSE));
-            }
+            String emailDb = "&email=" + email;
+            String link = Routes.EMAIL_VALIDATION_FRONTEND_ROUTE + "token" + emailDb;
+            Response response = TestUtils.getSendGridResponse();
+            when(
+                    mailService.sendEmail(user.getEmail(), user.getFirstName(),
+                            link, "test",
+                            Strings.EMAIL_AS_VERIFY_EMAIL)).thenReturn(response);
+            Map<String, Object> mapRet = userService.generateEmailVerification(user, email);
+            assertEquals(HttpStatus.ACCEPTED, mapRet.get(Strings.STATUS_CODE_RESPONSE));
+            assertEquals(Strings.MAIL_SENT, mapRet.get(Strings.MESSAGE_RESPONSE));
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -323,16 +318,17 @@ class UserServiceImplTest {
 
     @Test
     void generateEmailVerificationShouldThrowExceptionBadDataException() {
-        User user = TestUtils.getUserNotAdmin();;
+        User user = TestUtils.getUserNotAdmin();
+        ;
         String email = user.getEmail();
         user.setIsEmailVerified(true);
-        assertThrows(BadDataException.class,() -> userService.generateEmailVerification(user,email));
+        assertThrows(BadDataException.class, () -> userService.generateEmailVerification(user, email));
     }
 
     @Test
     void mapToUserDetailsDto() {
         UserPrincipalSecurity user = TestUtils.getUserPrincipalSecurity();
-        assertEquals(modelMapper.map(user, UserDetailsDto.class),userService.mapToUserDetailsDto(user));
+        assertEquals(modelMapper.map(user, UserDetailsDto.class), userService.mapToUserDetailsDto(user));
     }
 
 
@@ -365,9 +361,9 @@ class UserServiceImplTest {
             when(userDao.findByEmail(userRegisterDto.getEmail())).thenReturn(Optional.empty());
             when(userDao.findByIdentifier(userRegisterDto.getIdentifier())).thenReturn(Optional.empty());
             when(roleService.findById(Permissions.ROLE_USER)).
-                    thenReturn(Optional.of(TestUtils.userRole()));
+                    thenReturn(TestUtils.userRole());
             when(identifierTypeService.findById(userRegisterDto.
-                    getTypeIdentifierId())).thenReturn(Optional.of(TestUtils.identifierTypeCC()));
+                    getTypeIdentifierId())).thenReturn(TestUtils.identifierTypeCC());
             User userDb = userService.save(userRegisterDto);
             assertEquals(userDb.getEmail(), userRegisterDto.getEmail());
             assertEquals(Permissions.ROLE_USER, userDb.getRole().getId());

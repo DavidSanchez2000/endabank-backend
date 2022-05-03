@@ -24,8 +24,7 @@
             **/com/endava/endabank/EndabankApplication.java,
             **/com/endava/endabank/SwaggerConfig.java,
             **/com/endava/endabank/controller/**,
-            **/com/endava/endabank/security/WebMvcConfig.java,
-            **/com/endava/endabank/security/WebSecurityConfig.java,
+            **/com/endava/endabank/configuration/**,
             **/com/endava/endabank/security/jwtauthentication/JwtAuthenticationEntryPoint.java,
             **/com/endava/endabank/security/UserAuthentication.java,
         </sonar.coverage.exclusions>
@@ -113,6 +112,11 @@
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
             <version>0.8.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
     <build>

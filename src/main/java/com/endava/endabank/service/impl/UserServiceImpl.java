@@ -19,6 +19,7 @@ import com.endava.endabank.model.IdentifierType;
 import com.endava.endabank.model.Permission;
 import com.endava.endabank.model.Role;
 import com.endava.endabank.model.User;
+import com.endava.endabank.configuration.MailProperties;
 import com.endava.endabank.security.utils.JwtManage;
 import com.endava.endabank.service.ForgotUserPasswordTokenService;
 import com.endava.endabank.service.IdentifierTypeService;
@@ -26,6 +27,7 @@ import com.endava.endabank.service.RoleService;
 import com.endava.endabank.service.UserService;
 import com.endava.endabank.utils.MailService;
 import com.endava.endabank.utils.user.UserValidations;
+import com.google.common.annotations.VisibleForTesting;
 import com.sendgrid.Response;
 import lombok.AllArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -57,6 +59,9 @@ public class UserServiceImpl implements UserService {
     private RoleService roleService;
     private PasswordEncoder passwordEncoder;
     private ForgotUserPasswordTokenService forgotUserPasswordTokenService;
+    private MailService mailService;
+    private MailProperties mailProperties;
+
 
     @Override
     @Transactional(readOnly = true)
@@ -84,10 +89,8 @@ public class UserServiceImpl implements UserService {
         if (userExist.isPresent()) {
             throw new UniqueConstraintViolationException(Strings.CONSTRAINT_IDENTIFIER_VIOLATED);
         }
-        Role role = roleService.findById(Permissions.ROLE_USER).
-                orElseThrow(() -> new ResourceNotFoundException(Strings.ROLE_NOT_FOUND));
-        IdentifierType identifierType = identifierTypeService.findById(userDto.getTypeIdentifierId()).
-                orElseThrow((() -> new ResourceNotFoundException(Strings.IDENTIFIER_TYPE_NOT_FOUND)));
+        Role role = roleService.findById(Permissions.ROLE_USER);
+        IdentifierType identifierType = identifierTypeService.findById(userDto.getTypeIdentifierId());
         user.setRole(role);
         user.setIdentifierType(identifierType);
         user.setPassword(passwordEncoder.encode(user.getPassword()));
@@ -128,7 +131,7 @@ public class UserServiceImpl implements UserService {
             forgotUserPasswordTokenService.save(forgotUserPasswordToken);
             return Routes.RESET_PASSWORD_FRONTEND_ROUTE + token;
         };
-        return this.sendEmailToUser(System.getenv("SEND_GRID_TEMPLATE_ID"), userDb,
+        return this.sendEmailToUser(mailProperties.getTemplatePassword(), userDb,
                 Strings.EMAIL_AS_RESET_PASSWORD, callback);
     }
 
@@ -147,7 +150,7 @@ public class UserServiceImpl implements UserService {
             String emailDb = "&email=" + user.getEmail();
             return Routes.EMAIL_VALIDATION_FRONTEND_ROUTE + token + emailDb;
         };
-        return this.sendEmailToUser(System.getenv("SEND_GRID_TEMPLATE_ID_VERIFY"), userDb,
+        return this.sendEmailToUser(mailProperties.getTemplateVerify(), userDb,
                 Strings.EMAIL_AS_VERIFY_EMAIL, callback);
     }
 
@@ -208,21 +211,24 @@ public class UserServiceImpl implements UserService {
         return map;
     }
 
-    public UserToApproveAccountDto mapToUserToApproveDto(User user) {
+    @VisibleForTesting
+    UserToApproveAccountDto mapToUserToApproveDto(User user) {
         return modelMapper.map(user, UserToApproveAccountDto.class);
     }
 
-    public UserDetailsDto mapToUserDetailsDto(UserPrincipalSecurity user) {
+    @VisibleForTesting
+    UserDetailsDto mapToUserDetailsDto(UserPrincipalSecurity user) {
         return modelMapper.map(user, UserDetailsDto.class);
     }
 
-    public Map<String, Object> sendEmailToUser(String templateId, User user, String asName,
+    @VisibleForTesting
+    Map<String, Object> sendEmailToUser(String templateId, User user, String asName,
                                                 BiFunction<User, String, String> callback) {
         Map<String, Object> map = new HashMap<>();
         try {
             String token = JwtManage.generateToken(user.getId(), user.getEmail(), Strings.SECRET_JWT);
             String link = callback.apply(user, token);
-            Response response = MailService.sendEmail(user.getEmail(), user.getFirstName(), link, templateId, asName);
+            Response response = mailService.sendEmail(user.getEmail(), user.getFirstName(), link, templateId, asName);
             map.put(Strings.STATUS_CODE_RESPONSE, HttpStatus.valueOf(response.getStatusCode()));
         } catch (Exception e) {
             throw new ServiceUnavailableException(e.getMessage());

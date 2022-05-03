@@ -5,12 +5,15 @@ import com.endava.endabank.exceptions.customexceptions.BadDataException;
 import com.endava.endabank.model.User;
 import com.endava.endabank.utils.TestUtils;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+
+@ActiveProfiles("test")
 class JwtManageTest {
 
     private final String secret_dummy = TestUtils.SECRET_DUMMY;
