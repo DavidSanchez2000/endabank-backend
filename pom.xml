@@ -22,7 +22,6 @@
             **/com/endava/endabank/constants/**,
             **/com/endava/endabank/exceptions/**,
             **/com/endava/endabank/EndabankApplication.java,
-            **/com/endava/endabank/SwaggerConfig.java,
             **/com/endava/endabank/controller/**,
             **/com/endava/endabank/configuration/**,
             **/com/endava/endabank/security/jwtauthentication/JwtAuthenticationEntryPoint.java,

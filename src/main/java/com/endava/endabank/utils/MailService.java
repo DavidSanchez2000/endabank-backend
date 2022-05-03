@@ -1,6 +1,7 @@
 package com.endava.endabank.utils;
 
 import com.endava.endabank.configuration.MailProperties;
+import com.google.common.annotations.VisibleForTesting;
 import com.sendgrid.Method;
 import com.sendgrid.Request;
 import com.sendgrid.Response;
@@ -19,8 +20,8 @@ public class MailService {
 
     private MailProperties mailProperties;
 
-    public  Response sendEmail(String emailTo, String name, String link,
-                                     String templateId, String asName) throws IOException {
+    public Response sendEmail(String emailTo, String name, String link,
+                              String templateId, String asName) throws IOException {
         if (emailTo == null || name == null || link == null || templateId == null || asName == null) {
             throw new IllegalArgumentException("All parameters must be not null");
         }
@@ -30,12 +31,15 @@ public class MailService {
         return invokeServiceEmail(configureMail(templateId, asName, emailTo, name, link));
     }
 
-    public SendGrid getSendGrid() {
+    @VisibleForTesting
+    SendGrid getSendGrid() {
         return new SendGrid(mailProperties.getApiKey());
+
     }
 
 
-    public Personalization getPersonalization(String emailTo, String name, String link) {
+    @VisibleForTesting
+    Personalization getPersonalization(String emailTo, String name, String link) {
         Personalization personalization = new Personalization();
         personalization.addDynamicTemplateData("name", name);
         personalization.addDynamicTemplateData("link", link);
@@ -43,8 +47,9 @@ public class MailService {
         return personalization;
     }
 
-    public  Mail configureMail(String templateId, String asName,
-                                     String emailTo, String name, String link) {
+    @VisibleForTesting
+    Mail configureMail(String templateId, String asName,
+                       String emailTo, String name, String link) {
         Mail mail = new Mail();
         Email fromEmail = new Email();
         fromEmail.setName(asName);
@@ -55,7 +60,8 @@ public class MailService {
         return mail;
     }
 
-    public  Response invokeServiceEmail(Mail mail) throws IOException {
+    @VisibleForTesting
+    Response invokeServiceEmail(Mail mail) throws IOException {
         SendGrid sg = getSendGrid();
         Request request = new Request();
         request.setMethod(Method.POST);
