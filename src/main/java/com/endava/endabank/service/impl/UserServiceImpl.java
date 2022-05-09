@@ -114,7 +114,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public UserToApproveAccountDto updateUserAccountApprove(Integer id, boolean value) {
         User user = this.findById(id);
         user.setIsApproved(value);
