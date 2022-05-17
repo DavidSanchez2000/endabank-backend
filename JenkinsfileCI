@@ -1,0 +1,51 @@
+pipeline {
+
+  environment {
+    dockerimagename = "davidsanchez21/endabank"
+    dockerImage = ""
+  }
+
+  agent any
+
+  stages {
+
+    stage('Checkout Source') {
+      steps {
+        git url: 'https://github.com/DavidSanchez2000/endabank-backend.git', branch: 'development'
+      }
+    }
+
+    stage('Build image') {
+      steps{
+            sh '''
+                #!/bin/bash
+                chmod +x mvnw
+            '''
+        script {
+          dockerImage = docker.build dockerimagename
+        }
+        echo "The current Build number is ${BUILD_NUMBER}"
+      }
+    }
+
+    stage('Pushing Image') {
+      environment {
+               registry = 'davidsanchez21/endabank'
+               registryCredential = 'dockerhublogin'
+           }
+      steps{
+        script {
+          docker.withRegistry( 'https://registry.hub.docker.com', registryCredential ) {
+            dockerImage.push("latest")
+            dockerImage.push("$BUILD_NUMBER")
+          }
+        }
+      }
+    }
+
+  }
+
+}
+
+
+

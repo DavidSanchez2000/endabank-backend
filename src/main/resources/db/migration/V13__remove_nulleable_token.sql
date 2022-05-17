@@ -1,0 +1,1 @@
+ALTER TABLE forgot_user_password_token ALTER COLUMN token DROP NOT NULL;

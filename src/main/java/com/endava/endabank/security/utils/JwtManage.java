@@ -5,27 +5,30 @@ import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Component;
+import com.endava.endabank.constants.Strings;
+import com.endava.endabank.exceptions.customexceptions.BadDataException;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-@Component
-public class JwtManage {
-    @Value("${jwt.secret}")
-    private String secret;
 
-    public String generateToken(UserDetails userDetails) {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public final class JwtManage {
+    public static String generateToken(Integer id, String username, String secret) throws BadDataException {
         Map<String, Object> claims = new HashMap<>();
-        return doGenerateToken(claims, userDetails.getUsername());
+        if (id == null || username == null || "".equals(username)
+                || secret == null || "".equals(secret)) {
+            throw new BadDataException(Strings.BAD_DATA_FOR_TOKEN_GENERATION);
+        }
+        claims.put(Strings.USER_ID_BODY, id);
+        return doGenerateToken(claims, username, secret);
     }
 
-    private String doGenerateToken(Map<String, Object> claims, String username) {
-        Algorithm algorithm = Algorithm.HMAC512(secret.getBytes(StandardCharsets.UTF_8));
+    private static String doGenerateToken(Map<String, Object> claims, String username, String secret) {
+        Algorithm algorithm = Algorithm.HMAC512(secret);
         return JWT.create().
                 withSubject(username).withIssuedAt(new Date(System.currentTimeMillis()))
                 .withExpiresAt(new Date(System.currentTimeMillis() + 20 * 60 * 1000))
@@ -33,17 +36,16 @@ public class JwtManage {
                 .sign(algorithm);
     }
 
-    public Object[] verifyToken(String authorizationHeader) {
-        String token = authorizationHeader.substring("Bearer ".length());
-        Algorithm algorithm = Algorithm.HMAC512(secret.getBytes(StandardCharsets.UTF_8));
+    public static Integer verifyToken(String authorizationHeader, String secret) {
+        if (authorizationHeader == null || "".equals(authorizationHeader)
+                || secret == null || "".equals(secret)) {
+            throw new BadDataException(Strings.BAD_DATA_FOR_TOKEN_VERIFICATION);
+        }
+        String token = authorizationHeader.substring(Strings.BEARER.length());
+        Algorithm algorithm = Algorithm.HMAC512(secret);
         JWTVerifier verifier = JWT.require(algorithm).build();
         DecodedJWT decodedJWT = verifier.verify(token);
-        String username = decodedJWT.getSubject();
-        Claim _roles = decodedJWT.getClaim("roles");
-        String[] roles = {};
-        if (!_roles.isNull()) {
-            roles = _roles.asArray(String.class);
-        }
-        return new Object[]{username, roles};
+        Claim id = decodedJWT.getClaim(Strings.USER_ID_BODY);
+        return id.asInt();
     }
 }
