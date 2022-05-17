@@ -12,3 +12,4 @@ EXPOSE 8080
 COPY --from=build /endabank-backend/target/endabank-0.0.1-SNAPSHOT.jar /usr/local/lib/backend.jar
 ENTRYPOINT ["java","-jar","/usr/local/lib/backend.jar"]
 
+
