@@ -11,7 +11,7 @@ public final class Routes {
     public static final String API_USERS_ROUTE = API_ROUTE + USERS_ROUTE;
     public static final String LOGIN_ROUTE = "/login";
     public static final String API_LOGIN_ROUTE = API_ROUTE + LOGIN_ROUTE;
-    public static final String FRONTEND_ROUTE = "http://localhost:3000";
+    public static final String FRONTEND_ROUTE = "http://medellin-med.uc.r.appspot.com";
     public static final String RESET_PASSWORD_ROUTE = "/reset-password";
     public static final String APPROVE_ACCOUNT_ROUTE = "/approve/{id}";
     public static final String RESET_PASSWORD_FRONTEND_ROUTE = FRONTEND_ROUTE + "/reset-password/?token=";
